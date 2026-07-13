@@ -97,6 +97,8 @@ export interface CheckRequest {
   /** base64url HMAC-SHA256(deviceKey, `challengeId.bleResponse.clientTs`). */
   deviceSignature: string;
   clientTs: number;
+  /** Optional "challenge|nonce" echo from the tablet (verification diagnostics). */
+  bleEcho?: string;
 }
 
 export interface CheckResponse {

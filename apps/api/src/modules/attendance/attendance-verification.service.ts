@@ -152,11 +152,22 @@ export class AttendanceVerificationService {
         dto.bleResponse,
         dto.challengeId,
       );
+      // If the tablet echoed its inputs, check its internal consistency too:
+      // consistent echo + mismatch means the INPUTS diverged (visible in echo);
+      // inconsistent echo means the response was corrupted in transit.
+      let echoAnalysis: string | undefined;
+      if (dto.bleEcho) {
+        const [echoChallenge, echoNonce] = dto.bleEcho.split("|");
+        const expected = hmacSha256(tabletSecret!, `${echoChallenge}.${echoNonce}`);
+        const selfConsistent = this.safeEqualB64(expected, dto.bleResponse);
+        echoAnalysis = `selfConsistent=${selfConsistent} echoChallenge=${echoChallenge} echoNonce=${echoNonce} issuedChallenge=${challengeB64}`;
+      }
       await fail(7, "ble_response_invalid", {
         tabletId: qr.tid,
         qrNonce: qr.n,
         candidates: candidateNonces,
         diagnosis,
+        ...(echoAnalysis ? { echoAnalysis } : {}),
       });
     }
 

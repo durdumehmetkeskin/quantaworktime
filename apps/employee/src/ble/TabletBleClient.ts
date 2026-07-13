@@ -15,9 +15,16 @@ import {
  * Proximity proof step (spec §2): write the server challenge to the tablet
  * over BLE and read back HMAC(tabletSecret, challenge.nonce).
  */
+export interface BleResult {
+  /** HMAC response, base64url. */
+  response: string;
+  /** Optional "challenge|nonce" echo from the tablet (diagnostics). */
+  echo?: string;
+}
+
 export interface TabletBleClient {
-  /** Returns the tablet's response as base64url, or throws (Turkish message). */
-  getBleResponse(tabletId: string, challengeB64: string): Promise<string>;
+  /** Returns the tablet's response (and echo), or throws (Turkish message). */
+  getBleResponse(tabletId: string, challengeB64: string): Promise<BleResult>;
 }
 
 export async function requestBleScanPermissions(): Promise<boolean> {
@@ -62,7 +69,7 @@ export class BlePlxTabletClient implements TabletBleClient {
     return this.manager;
   }
 
-  async getBleResponse(tabletId: string, challengeB64: string): Promise<string> {
+  async getBleResponse(tabletId: string, challengeB64: string): Promise<BleResult> {
     const granted = await requestBleScanPermissions();
     if (!granted) throw new Error("Bluetooth izni verilmedi.");
     const manager = this.getManager();
@@ -95,7 +102,9 @@ export class BlePlxTabletClient implements TabletBleClient {
     });
 
     try {
-      const connected = await device.connect({ timeout: 10_000 });
+      // requestMTU: the 89-byte echo response must fit a single read — the
+      // default 23-byte MTU forces blob reads, which proved unreliable.
+      const connected = await device.connect({ timeout: 10_000, requestMTU: 187 });
       await connected.discoverAllServicesAndCharacteristics();
       await connected.writeCharacteristicWithResponseForService(
         BLE_SERVICE_UUID,
@@ -107,7 +116,14 @@ export class BlePlxTabletClient implements TabletBleClient {
         BLE_RESPONSE_CHARACTERISTIC_UUID,
       );
       if (!characteristic.value) throw new Error("Tablet yanıt vermedi.");
-      return toBase64Url(stdBase64ToBytes(characteristic.value));
+      const raw = stdBase64ToBytes(characteristic.value);
+      // New tablets answer "challenge|nonce|hmac" (ASCII); old ones raw 32 bytes.
+      const asText = String.fromCharCode(...raw);
+      const parts = asText.split("|");
+      if (parts.length === 3 && /^[A-Za-z0-9_-]{43}$/.test(parts[2])) {
+        return { response: parts[2], echo: `${parts[0]}|${parts[1]}` };
+      }
+      return { response: toBase64Url(raw) };
     } finally {
       await device.cancelConnection().catch(() => undefined);
     }
@@ -125,14 +141,16 @@ export class MockTabletBleClient implements TabletBleClient {
     private readonly currentNonceProvider: () => string,
   ) {}
 
-  async getBleResponse(_tabletId: string, challengeB64: string): Promise<string> {
+  async getBleResponse(_tabletId: string, challengeB64: string): Promise<BleResult> {
     await new Promise<void>((resolve) => setTimeout(() => resolve(), 600)); // simulate radio latency
-    return toBase64Url(
-      computeBleResponse(
-        fromBase64Url(this.tabletSecretB64),
-        challengeB64,
-        this.currentNonceProvider(),
+    return {
+      response: toBase64Url(
+        computeBleResponse(
+          fromBase64Url(this.tabletSecretB64),
+          challengeB64,
+          this.currentNonceProvider(),
+        ),
       ),
-    );
+    };
   }
 }

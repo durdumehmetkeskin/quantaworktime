@@ -42,6 +42,11 @@ export class CheckDto {
   @IsInt()
   @Min(0)
   clientTs: number;
+
+  /** Optional tablet echo ("challenge|nonce") used only for failure diagnostics. */
+  @IsOptional()
+  @Matches(/^[A-Za-z0-9_-]{1,60}\|[A-Za-z0-9_-]{1,60}$/)
+  bleEcho?: string;
 }
 
 export class QueryAttendanceDto {

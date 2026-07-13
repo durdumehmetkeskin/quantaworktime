@@ -194,7 +194,10 @@ class BleGattServerModule(private val reactContext: ReactApplicationContext) :
         val message = "$challengeB64.$nonce"
         val mac = Mac.getInstance("HmacSHA256")
         mac.init(SecretKeySpec(secret, "HmacSHA256"))
-        return mac.doFinal(message.toByteArray(Charsets.UTF_8))
+        val hmacB64 = Base64.encodeToString(mac.doFinal(message.toByteArray(Charsets.UTF_8)), B64_FLAGS)
+        // Echo the inputs alongside the HMAC ("challenge|nonce|hmac") so the
+        // phone/server can pinpoint which input diverged when verification fails.
+        return "$challengeB64|$nonce|$hmacB64".toByteArray(Charsets.US_ASCII)
     }
 
     private val gattCallback = object : BluetoothGattServerCallback() {

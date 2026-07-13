@@ -52,7 +52,7 @@ export async function performCheck(
   }
 
   onProgress("ble");
-  const bleResponse = await ble.getBleResponse(qr.tid, challenge.challenge);
+  const bleResult = await ble.getBleResponse(qr.tid, challenge.challenge);
 
   onProgress("submit");
   const clientTs = Math.floor(Date.now() / 1000);
@@ -60,12 +60,13 @@ export async function performCheck(
   const body: CheckRequest = {
     qrPayload: qrToken,
     challengeId: challenge.challengeId,
-    bleResponse,
+    bleResponse: bleResult.response,
     type,
     deviceSignature: toBase64Url(
-      computeDeviceSignature(deviceKey, challenge.challengeId, bleResponse, clientTs),
+      computeDeviceSignature(deviceKey, challenge.challengeId, bleResult.response, clientTs),
     ),
     clientTs,
+    ...(bleResult.echo ? { bleEcho: bleResult.echo } : {}),
   };
 
   try {
