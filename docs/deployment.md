@@ -4,13 +4,14 @@ Hedef mimari:
 
 ```
 İnternet ──HTTPS──▶ Cloudflare (SSL burada) ──HTTP──▶ Host nginx
-   quanta.durdumehmetkeskin.space      ──▶ 127.0.0.1:8080 ──▶ [quanta-admin]──/api──▶ [quanta-api]
+   quanta.durdumehmetkeskin.space      ──▶ 127.0.0.1:8090 ──▶ [quanta-admin]──/api──▶ [quanta-api]
    quantaapi.durdumehmetkeskin.space   ──▶ 127.0.0.1:3010 ──▶ [quanta-api] ──▶ [quanta-postgres]
                                                                      (postgres: host portu YOK)
 ```
 
 - API ve admin container'ları **yalnızca 127.0.0.1'e** bağlanır — dışarıdan sadece host nginx üzerinden erişilir.
 - PostgreSQL **hiçbir host portu yayınlamaz** (sunucudaki mevcut PostgreSQL ile çakışmaz); yalnızca compose iç ağından erişilir.
+- Loopback portları (3010, 8090) sunucudaki dolu portlarla (3000, 1337, 5432, 9000-9001, 6379) çakışmayacak şekilde seçildi; deploy scripti yine de her kurulumda doluluk kontrolü yapar. Değiştirmek gerekirse: `.env` → `API_BIND_PORT` / `ADMIN_BIND_PORT` + `deploy/nginx/*.conf` içindeki `proxy_pass` portu.
 
 ## 1. Cloudflare ayarları (bir kez)
 
@@ -43,7 +44,7 @@ Script idempotenttir:
 docker ps                                   # üç container Up olmalı
 docker port quanta-postgres                 # ÇIKTI BOŞ olmalı (port kapalı)
 curl -s http://127.0.0.1:3010/auth/login -X POST   # 400/401 JSON dönmeli
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080   # 200
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8090   # 200
 curl -s https://quanta.durdumehmetkeskin.space -o /dev/null -w '%{http_code}\n'  # 200 (Cloudflare üzerinden)
 ```
 

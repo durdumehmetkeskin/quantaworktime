@@ -57,7 +57,7 @@ services:
       - api
     ports:
       # loopback only — host nginx (quanta.durdumehmetkeskin.space) proxies here
-      - "127.0.0.1:${ADMIN_BIND_PORT:-8080}:80"
+      - "127.0.0.1:${ADMIN_BIND_PORT:-8090}:80"
 
 volumes:
   quanta-pgdata-prod:

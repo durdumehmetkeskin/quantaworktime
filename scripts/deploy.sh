@@ -91,7 +91,28 @@ else
   echo ">> Mevcut .env korunuyor."
 fi
 
-# ------------------------------------------------------ 4) container'ları aç
+# ---------------------------------------------- 4) port çakışması kontrolü
+# Sunucuda başka projeler var (3000, 1337, 5432, 9000-9001, 6379 dolu);
+# bizim loopback portlarımız boş olmalı — doluysa başkasının servisini
+# gölgelemeden önce durdur.
+API_PORT="$(grep -oP '^API_BIND_PORT=\K.*' .env 2>/dev/null || echo 3010)"
+ADMIN_PORT="$(grep -oP '^ADMIN_BIND_PORT=\K.*' .env 2>/dev/null || echo 8090)"
+for port in "$API_PORT" "$ADMIN_PORT"; do
+  owner="$(docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null | grep -E ":${port}->" | awk '{print $1}' | head -1 || true)"
+  if [[ -n "$owner" && "$owner" != "quanta-api" && "$owner" != "quanta-admin" ]]; then
+    echo "HATA: $port portu '$owner' container'ı tarafından kullanılıyor."
+    echo "      .env içinde API_BIND_PORT / ADMIN_BIND_PORT değerini boş bir portla değiştirin"
+    echo "      (deploy/nginx/*.conf içindeki proxy_pass portunu da aynı değere güncelleyin)."
+    exit 1
+  fi
+  if [[ -z "$owner" ]] && ss -ltnH "sport = :$port" 2>/dev/null | grep -q .; then
+    echo "HATA: $port portu docker dışı bir süreç tarafından dinleniyor (ss -ltnp ile bakın)."
+    echo "      .env içinde ilgili *_BIND_PORT değerini değiştirin."
+    exit 1
+  fi
+done
+
+# ------------------------------------------------------ 5) container'ları aç
 echo ">> Container'lar derlenip başlatılıyor..."
 docker compose -f "$COMPOSE_FILE" up -d --build
 
@@ -107,29 +128,57 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-# ----------------------------------------------------------------- 5) seed
+# ----------------------------------------------------------------- 6) seed
 if $SEED; then
   echo ">> Seed çalıştırılıyor (idempotent)..."
   docker compose -f "$COMPOSE_FILE" exec -T api node dist/database/seed.js
 fi
 
-# ------------------------------------------------------------ 6) host nginx
+# ------------------------------------------------------------ 7) host nginx
 echo ">> Host nginx site konfigleri kuruluyor..."
+if ! command -v nginx >/dev/null 2>&1; then
+  echo "UYARI: Host'ta nginx binary'si bulunamadı. nginx bir container'da çalışıyorsa"
+  echo "       deploy/nginx/*.conf dosyalarını o container'ın conf dizinine kendiniz bağlayın."
+  exit 1
+fi
+
+# Ubuntu/Debian paketleri sites-enabled kullanır; özel kurulumlar çoğu zaman
+# yalnızca conf.d okur. Aktif konfigürasyona bakarak doğru dizini seç.
+if nginx -T 2>/dev/null | grep -qE 'include\s+/etc/nginx/sites-enabled'; then
+  NGINX_MODE="sites"
+elif nginx -T 2>/dev/null | grep -qE 'include\s+/etc/nginx/conf\.d/\*\.conf'; then
+  NGINX_MODE="confd"
+else
+  NGINX_MODE="sites"
+  echo "UYARI: nginx include yapısı tespit edilemedi; sites-enabled varsayıldı."
+fi
+
 for conf in quanta-api.conf quanta-admin.conf; do
-  target="/etc/nginx/sites-available/$conf"
+  if [[ "$NGINX_MODE" == "confd" ]]; then
+    target="/etc/nginx/conf.d/$conf"
+  else
+    target="/etc/nginx/sites-available/$conf"
+  fi
   if [[ -f "$target" ]] && ! cmp -s "deploy/nginx/$conf" "$target"; then
     cp "$target" "$target.bak.$(date +%s)"
     echo "   Mevcut $conf yedeklendi (.bak)."
   fi
   cp "deploy/nginx/$conf" "$target"
-  ln -sf "$target" "/etc/nginx/sites-enabled/$conf"
+  if [[ "$NGINX_MODE" == "sites" ]]; then
+    ln -sf "$target" "/etc/nginx/sites-enabled/$conf"
+  fi
 done
 nginx -t
-systemctl reload nginx
+systemctl reload nginx 2>/dev/null || nginx -s reload
 
-# ---------------------------------------------------------------- 7) özet
-API_PORT="$(grep -oP '^API_BIND_PORT=\K.*' .env 2>/dev/null || echo 3010)"
-ADMIN_PORT="$(grep -oP '^ADMIN_BIND_PORT=\K.*' .env 2>/dev/null || echo 8080)"
+# Alan adının gerçekten bizim bloğa düştüğünü doğrula (varsayılan sunucuya
+# düşüyorsa kullanıcı diğer projeyi görür).
+if ! nginx -T 2>/dev/null | grep -q "server_name $ADMIN_DOMAIN"; then
+  echo "UYARI: nginx aktif konfigürasyonunda $ADMIN_DOMAIN görünmüyor —"
+  echo "       include yapınızı kontrol edin (nginx -T | grep include)."
+fi
+
+# ---------------------------------------------------------------- 8) özet
 echo
 echo "================= KURULUM TAMAM ================="
 echo "  Admin panel : https://$ADMIN_DOMAIN  (-> 127.0.0.1:$ADMIN_PORT)"
