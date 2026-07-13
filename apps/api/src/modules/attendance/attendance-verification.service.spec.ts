@@ -69,7 +69,7 @@ describe("AttendanceVerificationService", () => {
   let scenario: Scenario;
 
   const users = { findOneBy: jest.fn() };
-  const challenges = { findOneBy: jest.fn(), update: jest.fn() };
+  const challenges = { findOneBy: jest.fn(), update: jest.fn(), find: jest.fn() };
   const nonces = { insert: jest.fn(), update: jest.fn(), find: jest.fn() };
   const records = { findOne: jest.fn(), save: jest.fn(), create: jest.fn() };
   const userShifts = { find: jest.fn() };
@@ -101,6 +101,7 @@ describe("AttendanceVerificationService", () => {
       usedAt: null,
     });
     challenges.update.mockResolvedValue({ affected: 1 });
+    challenges.find.mockResolvedValue([]);
     records.findOne.mockResolvedValue(null);
     records.create.mockImplementation((r: unknown) => r);
     records.save.mockImplementation((r: Record<string, unknown>) =>

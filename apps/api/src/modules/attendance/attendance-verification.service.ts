@@ -145,10 +145,18 @@ export class AttendanceVerificationService {
       this.safeEqualB64(computeBleResponse(tabletSecret!, challengeB64, nonceB64), dto.bleResponse),
     );
     if (!bleValid) {
+      const diagnosis = await this.diagnoseBleMismatch(
+        userId,
+        tabletSecret!,
+        candidateNonces,
+        dto.bleResponse,
+        dto.challengeId,
+      );
       await fail(7, "ble_response_invalid", {
         tabletId: qr.tid,
         qrNonce: qr.n,
         candidates: candidateNonces,
+        diagnosis,
       });
     }
 
@@ -222,6 +230,49 @@ export class AttendanceVerificationService {
       earlyLeaveMinutes:
         type === AttendanceType.OUT ? computeEarlyLeaveMinutes(effective.shift, local) : 0,
     };
+  }
+
+  /**
+   * TEMPORARY field diagnostic: when the BLE proof fails, sweep encoding
+   * variants and the user's recent challenges to pinpoint WHERE the tablet's
+   * computation diverges. Result lands in the audit detail; remove once the
+   * root cause is fixed.
+   */
+  private async diagnoseBleMismatch(
+    userId: string,
+    tabletSecret: Uint8Array,
+    candidateNonces: string[],
+    bleResponseB64: string,
+    currentChallengeId: string,
+  ): Promise<string> {
+    const toStd = (b64url: string) => {
+      const std = b64url.replace(/-/g, "+").replace(/_/g, "/");
+      return std + "=".repeat((4 - (std.length % 4)) % 4);
+    };
+    const recent = await this.challenges.find({
+      where: { userId },
+      order: { createdAt: "DESC" },
+      take: 6,
+    });
+    for (const ch of recent) {
+      const canonical = toBase64Url(new Uint8Array(ch.challenge));
+      const variants: Array<[string, string]> = [
+        ["url-nopad", canonical],
+        ["std-pad", toStd(canonical)],
+        ["url-pad", canonical + "=".repeat((4 - (canonical.length % 4)) % 4)],
+        ["std-nopad", canonical.replace(/-/g, "+").replace(/_/g, "/")],
+      ];
+      for (const [variantName, challengeStr] of variants) {
+        for (const nonce of candidateNonces) {
+          const hm = hmacSha256(tabletSecret, `${challengeStr}.${nonce}`);
+          if (this.safeEqualB64(hm, bleResponseB64)) {
+            const stale = ch.id !== currentChallengeId ? "STALE_CHALLENGE" : "CURRENT_CHALLENGE";
+            return `MATCH: ${stale} id=${ch.id} encoding=${variantName} nonce=${nonce}`;
+          }
+        }
+      }
+    }
+    return "NO_MATCH: response fits none of (6 recent challenges x 4 encodings x candidates)";
   }
 
   private safeEqualB64(expected: Uint8Array, actualB64: string): boolean {
