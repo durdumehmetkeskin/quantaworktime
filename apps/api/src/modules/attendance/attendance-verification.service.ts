@@ -145,7 +145,11 @@ export class AttendanceVerificationService {
       this.safeEqualB64(computeBleResponse(tabletSecret!, challengeB64, nonceB64), dto.bleResponse),
     );
     if (!bleValid) {
-      await fail(7, "ble_response_invalid", { tabletId: qr.tid });
+      await fail(7, "ble_response_invalid", {
+        tabletId: qr.tid,
+        qrNonce: qr.n,
+        candidates: candidateNonces,
+      });
     }
 
     // Step 8 — no duplicate record for this user within the idempotency window.

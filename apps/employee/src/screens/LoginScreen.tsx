@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -10,25 +10,19 @@ import {
 } from "react-native";
 
 import logoFull from "../assets/logo-full.png";
-import { getServerUrl, login, setServerUrl } from "../lib/api";
+import { login } from "../lib/api";
 import { colors, sharedStyles } from "../theme";
 
 export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
-  const [serverUrl, setUrl] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    void getServerUrl().then((stored) => stored && setUrl(stored));
-  }, []);
-
   const submit = async () => {
     setBusy(true);
     setError(null);
     try {
-      await setServerUrl(serverUrl);
       await login(email.trim().toLowerCase(), password);
       onLoggedIn();
     } catch (e) {
@@ -44,15 +38,6 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
         <Image source={logoFull} style={styles.logo} resizeMode="contain" />
         <Text style={sharedStyles.title}>Quanta Mesai</Text>
         <Text style={sharedStyles.subtitle}>Çalışan girişi</Text>
-        <TextInput
-          style={sharedStyles.input}
-          value={serverUrl}
-          onChangeText={setUrl}
-          placeholder="Sunucu adresi (http://sunucu:3000)"
-          placeholderTextColor={colors.muted}
-          autoCapitalize="none"
-          keyboardType="url"
-        />
         <TextInput
           style={sharedStyles.input}
           value={email}
@@ -73,7 +58,7 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
         {error && <Text style={sharedStyles.error}>{error}</Text>}
         <TouchableOpacity
           style={[sharedStyles.primaryButton, busy && sharedStyles.disabled]}
-          disabled={busy || !email || !password || !serverUrl}
+          disabled={busy || !email || !password}
           onPress={submit}
         >
           {busy ? (

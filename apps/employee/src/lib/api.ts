@@ -2,17 +2,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type { AuthTokens, AuthUserInfo, LoginResponse } from "@quanta/shared";
 
-const SERVER_URL_KEY = "quanta.serverUrl";
+import { SERVER_URL } from "../config";
+
 const TOKENS_KEY = "quanta.tokens";
 const USER_KEY = "quanta.user";
-
-export async function getServerUrl(): Promise<string | null> {
-  return AsyncStorage.getItem(SERVER_URL_KEY);
-}
-
-export async function setServerUrl(url: string): Promise<void> {
-  await AsyncStorage.setItem(SERVER_URL_KEY, url.replace(/\/+$/, ""));
-}
 
 export async function getStoredUser(): Promise<AuthUserInfo | null> {
   const raw = await AsyncStorage.getItem(USER_KEY);
@@ -44,11 +37,9 @@ async function rawRequest<T>(
   path: string,
   options: { method?: string; body?: unknown; token?: string } = {},
 ): Promise<T> {
-  const serverUrl = await getServerUrl();
-  if (!serverUrl) throw new NetworkError("Sunucu adresi ayarlanmadı.");
   let response: Response;
   try {
-    response = await fetch(`${serverUrl}${path}`, {
+    response = await fetch(`${SERVER_URL}${path}`, {
       method: options.method ?? "GET",
       headers: {
         "content-type": "application/json",

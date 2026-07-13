@@ -1,7 +1,6 @@
 import * as Keychain from "react-native-keychain";
 
 export interface KioskConfig {
-  serverUrl: string;
   tabletId: string;
   tabletName: string;
   location: string;

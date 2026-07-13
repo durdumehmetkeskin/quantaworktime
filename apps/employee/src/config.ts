@@ -1,3 +1,6 @@
+/** Fixed production server — the app only ever talks to this API. */
+export const SERVER_URL = "https://quantaapi.durdumehmetkeskin.space";
+
 /**
  * Development toggles.
  *

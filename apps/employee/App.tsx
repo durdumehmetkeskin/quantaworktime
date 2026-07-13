@@ -10,7 +10,7 @@ import {
 } from "./src/ble/TabletBleClient";
 import { MOCK_TABLET_SECRET, USE_MOCK_BLE } from "./src/config";
 import { clearSession, getStoredUser, hasSession } from "./src/lib/api";
-import { fetchMyDevice, type DeviceStatusInfo } from "./src/lib/deviceKey";
+import { fetchMyDevice, hasStoredDeviceKey, type DeviceStatusInfo } from "./src/lib/deviceKey";
 import { CheckScreen } from "./src/screens/CheckScreen";
 import { DevicePendingScreen } from "./src/screens/DevicePendingScreen";
 import { HistoryScreen } from "./src/screens/HistoryScreen";
@@ -50,7 +50,14 @@ export default function App() {
     setUser(await getStoredUser());
     try {
       const device = await fetchMyDevice();
-      setRoute(device?.status === "ACTIVE" ? { name: "home" } : { name: "device", device });
+      if (device?.status === "ACTIVE" && !(await hasStoredDeviceKey())) {
+        // Reinstall wiped the keystore: the server-approved key no longer
+        // exists locally, so every check would fail signature verification.
+        // Force a fresh registration instead.
+        setRoute({ name: "device", device: null });
+      } else {
+        setRoute(device?.status === "ACTIVE" ? { name: "home" } : { name: "device", device });
+      }
     } catch {
       // token invalid or offline — fall back to login
       setRoute({ name: "login" });

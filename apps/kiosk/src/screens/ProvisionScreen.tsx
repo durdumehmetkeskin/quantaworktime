@@ -15,7 +15,6 @@ import { claimTablet } from "../services/api";
 import { saveConfig, type KioskConfig } from "../services/storage";
 
 export function ProvisionScreen({ onProvisioned }: { onProvisioned: (config: KioskConfig) => void }) {
-  const [serverUrl, setServerUrl] = useState("http://");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,10 +23,8 @@ export function ProvisionScreen({ onProvisioned }: { onProvisioned: (config: Kio
     setBusy(true);
     setError(null);
     try {
-      const normalized = serverUrl.replace(/\/+$/, "");
-      const claim = await claimTablet(normalized, code.trim().toUpperCase());
+      const claim = await claimTablet(code.trim().toUpperCase());
       const config: KioskConfig = {
-        serverUrl: normalized,
         tabletId: claim.tabletId,
         tabletName: claim.name,
         location: claim.location,
@@ -49,16 +46,6 @@ export function ProvisionScreen({ onProvisioned }: { onProvisioned: (config: Kio
       <Text style={styles.subtitle}>
         Yönetici panelinden aldığınız tek kullanımlık kurulum kodunu girin.
       </Text>
-      <TextInput
-        style={styles.input}
-        value={serverUrl}
-        onChangeText={setServerUrl}
-        placeholder="Sunucu adresi (http://sunucu:3000)"
-        placeholderTextColor="#64748b"
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="url"
-      />
       <TextInput
         style={[styles.input, styles.codeInput]}
         value={code}

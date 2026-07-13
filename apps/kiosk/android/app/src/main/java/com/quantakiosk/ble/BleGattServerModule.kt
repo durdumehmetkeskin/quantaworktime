@@ -117,25 +117,35 @@ class BleGattServerModule(private val reactContext: ReactApplicationContext) :
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
                 .setConnectable(true)
                 .build()
+            // Legacy BLE advertisements are capped at 31 bytes: flags (3) +
+            // 128-bit service UUID (18) already fills the packet, so the
+            // tabletId-hash service data MUST ride in the scan response
+            // (its own 31-byte budget) or advertising fails DATA_TOO_LARGE.
             val data = AdvertiseData.Builder()
                 .setIncludeDeviceName(false)
                 .addServiceUuid(ParcelUuid(serviceUuid))
+                .build()
+            val scanResponse = AdvertiseData.Builder()
                 .addServiceData(
                     ParcelUuid(serviceUuid),
                     Base64.decode(tabletIdHashB64, B64_FLAGS),
                 )
                 .build()
+            // Resolve the promise from the callback so JS reflects the REAL
+            // advertising state instead of assuming success.
+            var settled = false
             advertiseCallback = object : AdvertiseCallback() {
                 override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
                     Log.i(TAG, "Advertising started")
+                    if (!settled) { settled = true; promise.resolve(true) }
                 }
 
                 override fun onStartFailure(errorCode: Int) {
                     Log.e(TAG, "Advertising failed: $errorCode")
+                    if (!settled) { settled = true; promise.resolve(false) }
                 }
             }
-            advertiser?.startAdvertising(settings, data, advertiseCallback)
-            promise.resolve(true)
+            advertiser?.startAdvertising(settings, data, scanResponse, advertiseCallback)
         } catch (e: Exception) {
             promise.reject("BLE_START_FAILED", e)
         }

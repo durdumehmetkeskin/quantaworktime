@@ -12,6 +12,11 @@ const SERVICE = "quanta.employee.deviceKey";
  * lives only in the Keychain/Keystore. The server stores it encrypted at rest
  * for HMAC verification (device binding, spec §3.2).
  */
+/** True if a device key already exists in the keystore (survives updates, lost on uninstall). */
+export async function hasStoredDeviceKey(): Promise<boolean> {
+  return (await Keychain.getGenericPassword({ service: SERVICE })) !== false;
+}
+
 export async function getOrCreateDeviceKey(): Promise<Uint8Array> {
   const stored = await Keychain.getGenericPassword({ service: SERVICE });
   if (stored) return fromBase64Url(stored.password);

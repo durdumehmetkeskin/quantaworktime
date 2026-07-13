@@ -37,7 +37,17 @@ export function MainScreen({ config }: { config: KioskConfig }) {
     setCountdown(QR_ROTATION_SECONDS);
     // BLE responses must always use the freshest nonce.
     void updateBleState(config.tabletSecret, state.nonce);
-  }, [generator, config.tabletSecret]);
+    // Sync the new nonce to the server IMMEDIATELY: a phone that scanned the
+    // previous QR may finish its BLE step after this rotation, and the server
+    // can only accept the response if it already knows this nonce.
+    const pending = generator.takePending();
+    syncNonces(config, pending)
+      .then(() => {
+        generator.markSynced(pending);
+        setOnline(true);
+      })
+      .catch(() => setOnline(false));
+  }, [generator, config]);
 
   // QR rotation — keeps producing even while offline (spec §1).
   useEffect(() => {
@@ -81,22 +91,10 @@ export function MainScreen({ config }: { config: KioskConfig }) {
       }
     };
     void sync();
+    // Per-rotation nonce sync happens in rotateQr; this interval is the
+    // 5-minute heartbeat plus a catch-up for nonces that failed to sync.
     const heartbeat = setInterval(sync, HEARTBEAT_INTERVAL_SECONDS * 1000);
-    // sync nonces more eagerly than the heartbeat so the server can verify BLE quickly
-    const nonceSync = setInterval(() => {
-      const pending = generator.takePending();
-      if (pending.length === 0) return;
-      syncNonces(config, pending)
-        .then(() => {
-          generator.markSynced(pending);
-          setOnline(true);
-        })
-        .catch(() => setOnline(false));
-    }, QR_ROTATION_SECONDS * 1000);
-    return () => {
-      clearInterval(heartbeat);
-      clearInterval(nonceSync);
-    };
+    return () => clearInterval(heartbeat);
   }, [config, generator]);
 
   // Recent successful check-ins → short welcome toast.

@@ -6,6 +6,7 @@ import {
   type TabletClaimResponse,
 } from "@quanta/shared";
 
+import { SERVER_URL } from "../config";
 import type { KioskConfig } from "./storage";
 
 async function post<T>(url: string, body: unknown): Promise<T> {
@@ -30,19 +31,19 @@ function signedBody(config: KioskConfig): { ts: number; signature: string } {
   return { ts, signature };
 }
 
-export function claimTablet(serverUrl: string, provisionCode: string): Promise<TabletClaimResponse> {
-  return post<TabletClaimResponse>(`${serverUrl}/tablets/claim`, { provisionCode });
+export function claimTablet(provisionCode: string): Promise<TabletClaimResponse> {
+  return post<TabletClaimResponse>(`${SERVER_URL}/tablets/claim`, { provisionCode });
 }
 
 export function sendHeartbeat(config: KioskConfig): Promise<{ ok: boolean }> {
-  return post(`${config.serverUrl}/tablets/${config.tabletId}/heartbeat`, signedBody(config));
+  return post(`${SERVER_URL}/tablets/${config.tabletId}/heartbeat`, signedBody(config));
 }
 
 export function syncNonces(
   config: KioskConfig,
   nonces: Array<{ nonce: string; issuedTs: number }>,
 ): Promise<{ ok: boolean; received: number }> {
-  return post(`${config.serverUrl}/tablets/${config.tabletId}/nonces`, {
+  return post(`${SERVER_URL}/tablets/${config.tabletId}/nonces`, {
     ...signedBody(config),
     nonces,
   });
@@ -51,5 +52,5 @@ export function syncNonces(
 export function fetchRecentCheckins(
   config: KioskConfig,
 ): Promise<Array<{ fullName: string; type: string; timestamp: string }>> {
-  return post(`${config.serverUrl}/tablets/${config.tabletId}/recent-checkins`, signedBody(config));
+  return post(`${SERVER_URL}/tablets/${config.tabletId}/recent-checkins`, signedBody(config));
 }
