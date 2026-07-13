@@ -95,8 +95,10 @@ Denemeleri"nde `step` + `reason` ile kayıt; `audit_logs` tablosunda `ATTENDANCE
 
 ## 6. Bilinen Sınırlamalar
 
-- Gece yarısını aşan vardiyada IN ve OUT farklı günlere düştüğü için o günün "çalışılan dakika"
-  hesabı 0 kalır (kayıtlı davranış — `timesheet-calculator.spec.ts`); toplamlar admin düzeltmesiyle
-  yönetilir.
+- Çalışma süresi eşleşen GİRİŞ→ÇIKIŞ çiftlerinin toplamıdır; gün içinde dışarıda geçirilen
+  aralıklar sayılmaz. Günde tek çift varsa vardiya molası düşülür, birden fazla çiftte düşülmez
+  (mola zaten dışarıda sayılmıştır). Gece yarısını aşan vardiyada IN ve OUT farklı günlere
+  düştüğü için o çift eşleşmez ve süre 0 kalır (kayıtlı sınırlama — `timesheet-calculator.spec.ts`);
+  toplamlar admin düzeltmesiyle yönetilir.
 - Geliştirme ortamı Windows olduğundan `android/`/`ios/` derlemeleri bu depoda doğrulanmadı
   (Android SDK yok); RN uygulamaları TypeScript + mock BLE düzeyinde test edildi.

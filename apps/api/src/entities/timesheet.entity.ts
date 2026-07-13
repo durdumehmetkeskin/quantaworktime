@@ -39,6 +39,9 @@ export class Timesheet {
   totalOvertimeMinutes: number;
 
   @Column({ type: "int", default: 0 })
+  totalLeaveMinutes: number;
+
+  @Column({ type: "int", default: 0 })
   absentDays: number;
 
   @Column({

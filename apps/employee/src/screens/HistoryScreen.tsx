@@ -18,6 +18,7 @@ interface MyTimesheet {
   totalWorkedMinutes: number;
   totalLateMinutes: number;
   totalOvertimeMinutes: number;
+  totalLeaveMinutes: number;
   absentDays: number;
 }
 
@@ -78,6 +79,7 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
           <SummaryItem label="Toplam Çalışma" value={formatMinutes(summary.totalWorkedMinutes)} />
           <SummaryItem label="Geç Kalma" value={formatMinutes(summary.totalLateMinutes)} />
           <SummaryItem label="Fazla Mesai" value={formatMinutes(summary.totalOvertimeMinutes)} />
+          <SummaryItem label="İzin" value={formatMinutes(summary.totalLeaveMinutes ?? 0)} />
           <SummaryItem label="Devamsızlık" value={`${summary.absentDays} gün`} />
         </View>
       )}
@@ -130,13 +132,15 @@ const styles = StyleSheet.create({
   headerTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
   summaryCard: {
     flexDirection: "row",
+    flexWrap: "wrap",
     backgroundColor: colors.card,
     borderRadius: 16,
     padding: 14,
     marginBottom: 16,
     justifyContent: "space-between",
+    rowGap: 10,
   },
-  summaryItem: { alignItems: "center", flex: 1 },
+  summaryItem: { alignItems: "center", minWidth: "30%", flexGrow: 1 },
   row: {
     flexDirection: "row",
     alignItems: "center",

@@ -24,6 +24,16 @@ export enum TimesheetStatus {
   APPROVED = "APPROVED",
 }
 
+/** Classification of work performed outside scheduled hours. */
+export enum ExtraWorkStatus {
+  /** Awaiting an admin decision; NOT counted as overtime. */
+  PENDING = "PENDING",
+  /** Approved as overtime — counts into totalOvertimeMinutes. */
+  OVERTIME = "OVERTIME",
+  /** Approved as make-up for missing hours — stays in worked minutes only. */
+  MAKEUP = "MAKEUP",
+}
+
 // ---------------------------------------------------------------------------
 // QR payload (spec §1)
 // ---------------------------------------------------------------------------

@@ -91,6 +91,7 @@ export class ReportsService {
       { header: "Çalışma", key: "worked", width: 12 },
       { header: "Geç Kalma", key: "late", width: 12 },
       { header: "Fazla Mesai", key: "overtime", width: 12 },
+      { header: "İzin", key: "leave", width: 12 },
       { header: "Devamsızlık (gün)", key: "absent", width: 18 },
       { header: "Durum", key: "status", width: 12 },
     ];
@@ -103,6 +104,7 @@ export class ReportsService {
         worked: formatMinutes(t.totalWorkedMinutes),
         late: formatMinutes(t.totalLateMinutes),
         overtime: formatMinutes(t.totalOvertimeMinutes),
+        leave: formatMinutes(t.totalLeaveMinutes),
         absent: t.absentDays,
         status: t.status === "APPROVED" ? "Onaylı" : "Taslak",
       });

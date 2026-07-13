@@ -40,9 +40,48 @@ function rec(type: AttendanceType, at: Date, lateMinutes = 0): CalcRecord {
 
 describe("timesheet-calculator", () => {
   describe("workedMinutesForDay", () => {
-    it("computes first IN → last OUT minus break", () => {
+    it("single pair: IN → OUT minus break", () => {
       const records = [
         rec(AttendanceType.IN, ist("2026-06-01", "09:00")),
+        rec(AttendanceType.OUT, ist("2026-06-01", "18:00")),
+      ];
+      expect(workedMinutesForDay(records, DAY_SHIFT)).toBe(9 * 60 - 60);
+    });
+
+    it("multiple pairs: sums only paired time, gap not counted, no break deduction", () => {
+      // 09:00-12:00 (180) + 14:00-18:00 (240) → 420; the 2h outside is excluded
+      const records = [
+        rec(AttendanceType.IN, ist("2026-06-01", "09:00")),
+        rec(AttendanceType.OUT, ist("2026-06-01", "12:00")),
+        rec(AttendanceType.IN, ist("2026-06-01", "14:00")),
+        rec(AttendanceType.OUT, ist("2026-06-01", "18:00")),
+      ];
+      expect(workedMinutesForDay(records, DAY_SHIFT)).toBe(420);
+    });
+
+    it("trailing unclosed IN contributes nothing; completed pairs still count", () => {
+      // 09:00-12:00 pair (180) + 13:00 IN with no OUT → 1 completed pair → break applies
+      const records = [
+        rec(AttendanceType.IN, ist("2026-06-01", "09:00")),
+        rec(AttendanceType.OUT, ist("2026-06-01", "12:00")),
+        rec(AttendanceType.IN, ist("2026-06-01", "13:00")),
+      ];
+      expect(workedMinutesForDay(records, DAY_SHIFT)).toBe(180 - 60);
+    });
+
+    it("ignores an unmatched leading OUT (overnight spill)", () => {
+      const records = [
+        rec(AttendanceType.OUT, ist("2026-06-01", "05:30")),
+        rec(AttendanceType.IN, ist("2026-06-01", "09:00")),
+        rec(AttendanceType.OUT, ist("2026-06-01", "18:00")),
+      ];
+      expect(workedMinutesForDay(records, DAY_SHIFT)).toBe(9 * 60 - 60);
+    });
+
+    it("ignores a duplicate consecutive IN", () => {
+      const records = [
+        rec(AttendanceType.IN, ist("2026-06-01", "09:00")),
+        rec(AttendanceType.IN, ist("2026-06-01", "09:05")),
         rec(AttendanceType.OUT, ist("2026-06-01", "18:00")),
       ];
       expect(workedMinutesForDay(records, DAY_SHIFT)).toBe(9 * 60 - 60);
@@ -54,10 +93,10 @@ describe("timesheet-calculator", () => {
       ).toBe(0);
     });
 
-    it("never goes negative when OUT precedes IN", () => {
+    it("returns 0 when OUT precedes the only IN", () => {
       const records = [
-        rec(AttendanceType.IN, ist("2026-06-01", "18:00")),
         rec(AttendanceType.OUT, ist("2026-06-01", "09:00")),
+        rec(AttendanceType.IN, ist("2026-06-01", "18:00")),
       ];
       expect(workedMinutesForDay(records, DAY_SHIFT)).toBe(0);
     });
@@ -92,7 +131,7 @@ describe("timesheet-calculator", () => {
       expect(totals.totalWorkedMinutes).toBe(22 * 480);
       expect(totals.absentDays).toBe(0);
       expect(totals.totalLateMinutes).toBe(0);
-      expect(totals.totalOvertimeMinutes).toBe(0);
+      expect(totals.extraDays).toEqual([]);
     });
 
     it("counts absences on scheduled days without records", () => {
@@ -105,23 +144,24 @@ describe("timesheet-calculator", () => {
       expect(totals.absentDays).toBe(21);
     });
 
-    it("sums stored lateMinutes and computes overtime", () => {
+    it("sums stored lateMinutes and reports excess work as a pending extra day", () => {
       const records = [
         rec(AttendanceType.IN, ist("2026-06-01", "09:25"), 15),
         rec(AttendanceType.OUT, ist("2026-06-01", "20:25")), // 11h gross - 1h break = 600 min
       ];
       const totals = calculateMonth("2026-06", records, assignment(DAY_SHIFT), today);
       expect(totals.totalLateMinutes).toBe(15);
-      expect(totals.totalOvertimeMinutes).toBe(600 - 480);
+      // NOT auto-overtime: surfaced for admin classification instead.
+      expect(totals.extraDays).toEqual([{ date: "2026-06-01", minutes: 600 - 480 }]);
     });
 
-    it("treats work on a weekend (non-scheduled day) entirely as overtime", () => {
+    it("reports weekend (non-scheduled day) work entirely as an extra day", () => {
       const records = [
         rec(AttendanceType.IN, ist("2026-06-06", "10:00")), // Saturday
         rec(AttendanceType.OUT, ist("2026-06-06", "14:00")),
       ];
       const totals = calculateMonth("2026-06", records, assignment(DAY_SHIFT), today);
-      expect(totals.totalOvertimeMinutes).toBe(4 * 60 - 60);
+      expect(totals.extraDays).toEqual([{ date: "2026-06-06", minutes: 4 * 60 - 60 }]);
     });
 
     it("does not evaluate days after 'today' (no phantom absences)", () => {
@@ -133,6 +173,33 @@ describe("timesheet-calculator", () => {
       const totals = calculateMonth("2026-06", records, assignment(DAY_SHIFT), midMonth);
       // scheduled weekdays up to Jun 10: 1..5 and 8..10 → 8 days, 1 worked
       expect(totals.absentDays).toBe(7);
+    });
+
+    it("full-day leave: no absence and leave minutes counted, not missing", () => {
+      // Jun 2 (Tuesday) full-day leave, no records that day.
+      const records = [
+        rec(AttendanceType.IN, ist("2026-06-01", "09:00")),
+        rec(AttendanceType.OUT, ist("2026-06-01", "18:00")),
+      ];
+      const leaves = [{ date: "2026-06-02", startTime: null, endTime: null }];
+      const totals = calculateMonth("2026-06", records, assignment(DAY_SHIFT), today, leaves);
+      // 22 weekdays; 1 worked + 1 on leave → 20 absent (not 21)
+      expect(totals.absentDays).toBe(20);
+      expect(totals.totalLeaveMinutes).toBe(480);
+    });
+
+    it("partial leave forgives overlapping late minutes and counts leave time", () => {
+      // Leave 09:00-13:00; arrived 13:00 → stored late = 13:00 - (09:00+10dk grace) = 230.
+      const records = [
+        rec(AttendanceType.IN, ist("2026-06-01", "13:00"), 230),
+        rec(AttendanceType.OUT, ist("2026-06-01", "18:00")),
+      ];
+      const leaves = [{ date: "2026-06-01", startTime: "09:00", endTime: "13:00" }];
+      const totals = calculateMonth("2026-06", records, assignment(DAY_SHIFT), today, leaves);
+      expect(totals.totalLateMinutes).toBe(0); // fully covered by the leave window
+      expect(totals.totalLeaveMinutes).toBe(240);
+      // worked 5h - 1h break = 240; schedule reduced by leave = 480-240 = 240 → no extra day
+      expect(totals.extraDays).toEqual([]);
     });
 
     it("buckets an overnight shift's post-midnight OUT to the next local day", () => {

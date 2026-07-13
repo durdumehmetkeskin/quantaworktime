@@ -2,6 +2,8 @@ export { AttendanceRecord } from "./attendance-record.entity";
 export { AuditLog } from "./audit-log.entity";
 export { Challenge } from "./challenge.entity";
 export { Device } from "./device.entity";
+export { ExtraWorkEntry } from "./extra-work-entry.entity";
+export { LeaveEntry } from "./leave-entry.entity";
 export { QrNonce } from "./qr-nonce.entity";
 export { Shift } from "./shift.entity";
 export { Tablet } from "./tablet.entity";
@@ -13,6 +15,8 @@ import { AttendanceRecord } from "./attendance-record.entity";
 import { AuditLog } from "./audit-log.entity";
 import { Challenge } from "./challenge.entity";
 import { Device } from "./device.entity";
+import { ExtraWorkEntry } from "./extra-work-entry.entity";
+import { LeaveEntry } from "./leave-entry.entity";
 import { QrNonce } from "./qr-nonce.entity";
 import { Shift } from "./shift.entity";
 import { Tablet } from "./tablet.entity";
@@ -25,6 +29,8 @@ export const ALL_ENTITIES = [
   AuditLog,
   Challenge,
   Device,
+  ExtraWorkEntry,
+  LeaveEntry,
   QrNonce,
   Shift,
   Tablet,

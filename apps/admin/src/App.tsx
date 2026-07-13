@@ -6,6 +6,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { EmployeesPage } from "./pages/EmployeesPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RecordsPage } from "./pages/RecordsPage";
+import { ShiftsPage } from "./pages/ShiftsPage";
 import { TabletsPage } from "./pages/TabletsPage";
 import { TimesheetsPage } from "./pages/TimesheetsPage";
 
@@ -22,6 +23,7 @@ export function App() {
       >
         <Route path="/" element={<DashboardPage />} />
         <Route path="/employees" element={<EmployeesPage />} />
+        <Route path="/shifts" element={<ShiftsPage />} />
         <Route path="/tablets" element={<TabletsPage />} />
         <Route path="/timesheets" element={<TimesheetsPage />} />
         <Route path="/records" element={<RecordsPage />} />

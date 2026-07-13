@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { api, apiErrorMessage } from "../lib/api";
-import { currentMonth, formatMinutes, formatTime, WEEKDAY_LABELS } from "../lib/format";
+import { currentMonth, formatMinutes, formatTime, todayStr, WEEKDAY_LABELS } from "../lib/format";
 import { Badge, Button, Card, Field, inputClass, Modal, Spinner } from "../components/ui";
 
 interface TimesheetRow {
@@ -13,8 +13,33 @@ interface TimesheetRow {
   totalWorkedMinutes: number;
   totalLateMinutes: number;
   totalOvertimeMinutes: number;
+  totalLeaveMinutes: number;
   absentDays: number;
   status: "DRAFT" | "APPROVED";
+}
+
+interface ExtraWorkRow {
+  id: string;
+  userId: string;
+  fullName: string;
+  employeeCode: string | null;
+  workDate: string;
+  minutes: number;
+  status: "PENDING" | "OVERTIME" | "MAKEUP";
+  /** True when the user's month timesheet is APPROVED — classification frozen. */
+  locked: boolean;
+}
+
+interface LeaveRow {
+  id: string;
+  userId: string;
+  fullName: string;
+  employeeCode: string | null;
+  leaveDate: string;
+  startTime: string | null;
+  endTime: string | null;
+  note: string | null;
+  locked: boolean;
 }
 
 interface RecordRow {
@@ -43,6 +68,7 @@ export function TimesheetsPage() {
   const queryClient = useQueryClient();
   const [month, setMonth] = useState(currentMonth());
   const [cell, setCell] = useState<{ userId: string; fullName: string; day: string } | null>(null);
+  const [addingLeave, setAddingLeave] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const timesheets = useQuery({
@@ -63,10 +89,35 @@ export function TimesheetsPage() {
     },
   });
 
+  const extraWork = useQuery({
+    queryKey: ["extra-work", month],
+    queryFn: async () => (await api.get<ExtraWorkRow[]>(`/timesheets/extra-work/${month}`)).data,
+  });
+
+  const leaves = useQuery({
+    queryKey: ["leaves", month],
+    queryFn: async () => (await api.get<LeaveRow[]>(`/timesheets/leaves/${month}`)).data,
+  });
+
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["timesheets", month] });
     void queryClient.invalidateQueries({ queryKey: ["attendance", month] });
+    void queryClient.invalidateQueries({ queryKey: ["extra-work", month] });
+    void queryClient.invalidateQueries({ queryKey: ["leaves", month] });
   };
+
+  const deleteLeave = useMutation({
+    mutationFn: async (id: string) => api.delete(`/timesheets/leaves/${id}`),
+    onSuccess: invalidate,
+    onError: (e) => setError(apiErrorMessage(e)),
+  });
+
+  const classify = useMutation({
+    mutationFn: async ({ id, type }: { id: string; type: "OVERTIME" | "MAKEUP" }) =>
+      api.post(`/timesheets/extra-work/${id}/classify`, { type }),
+    onSuccess: invalidate,
+    onError: (e) => setError(apiErrorMessage(e)),
+  });
 
   const generate = useMutation({
     mutationFn: async () => api.post(`/timesheets/${month}/generate`),
@@ -111,6 +162,9 @@ export function TimesheetsPage() {
         <h1 className="text-xl font-bold text-slate-800">Puantaj</h1>
         <div className="flex items-center gap-2">
           <input className={inputClass + " !w-40"} type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+          <Button variant="secondary" onClick={() => setAddingLeave(true)}>
+            + İzin Ekle
+          </Button>
           <Button variant="secondary" onClick={() => generate.mutate()} disabled={generate.isPending}>
             {generate.isPending ? "Hesaplanıyor…" : "Yeniden Hesapla"}
           </Button>
@@ -124,6 +178,113 @@ export function TimesheetsPage() {
             kapat
           </button>
         </div>
+      )}
+
+      {(leaves.data?.length ?? 0) > 0 && (
+        <Card title="İzinler">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-xs text-slate-500">
+                <th className="py-2">Çalışan</th>
+                <th>Tarih</th>
+                <th>Aralık</th>
+                <th>Not</th>
+                <th className="text-right">İşlem</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaves.data!.map((l) => (
+                <tr key={l.id} className="border-b border-slate-100">
+                  <td className="py-2">
+                    {l.fullName}
+                    <span className="ml-1 text-xs text-slate-400">{l.employeeCode}</span>
+                  </td>
+                  <td>{l.leaveDate}</td>
+                  <td>
+                    {l.startTime ? (
+                      `${l.startTime} – ${l.endTime}`
+                    ) : (
+                      <Badge tone="green">Tam gün</Badge>
+                    )}
+                  </td>
+                  <td className="max-w-[240px] truncate text-xs text-slate-500">{l.note ?? ""}</td>
+                  <td className="text-right">
+                    {l.locked ? (
+                      <Badge tone="slate">🔒 Ay onaylı</Badge>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        className="!text-rose-600"
+                        disabled={deleteLeave.isPending}
+                        onClick={() => deleteLeave.mutate(l.id)}
+                      >
+                        Sil
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {(extraWork.data?.length ?? 0) > 0 && (
+        <Card title="Mesai Dışı Çalışmalar (yönetici onayı gerekir)">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-xs text-slate-500">
+                <th className="py-2">Çalışan</th>
+                <th>Tarih</th>
+                <th>Süre</th>
+                <th>Durum</th>
+                <th className="text-right">Sınıflandır</th>
+              </tr>
+            </thead>
+            <tbody>
+              {extraWork.data!.map((e) => (
+                <tr key={e.id} className="border-b border-slate-100">
+                  <td className="py-2">
+                    {e.fullName}
+                    <span className="ml-1 text-xs text-slate-400">{e.employeeCode}</span>
+                  </td>
+                  <td>{e.workDate}</td>
+                  <td className="font-medium">{formatMinutes(e.minutes)}</td>
+                  <td>
+                    {e.status === "PENDING" && <Badge tone="amber">Onay bekliyor</Badge>}
+                    {e.status === "OVERTIME" && <Badge tone="indigo">Fazla mesai</Badge>}
+                    {e.status === "MAKEUP" && <Badge tone="green">Eksik tamamlama</Badge>}
+                    {e.locked && (
+                      <span className="ml-1">
+                        <Badge tone="slate">🔒 Ay onaylı</Badge>
+                      </span>
+                    )}
+                  </td>
+                  <td className="space-x-2 text-right">
+                    <Button
+                      variant={e.status === "OVERTIME" ? "primary" : "secondary"}
+                      disabled={classify.isPending || e.locked}
+                      onClick={() => classify.mutate({ id: e.id, type: "OVERTIME" })}
+                    >
+                      Fazla Mesai
+                    </Button>
+                    <Button
+                      variant={e.status === "MAKEUP" ? "primary" : "secondary"}
+                      disabled={classify.isPending || e.locked}
+                      onClick={() => classify.mutate({ id: e.id, type: "MAKEUP" })}
+                    >
+                      Eksik Tamamlama
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-3 text-xs text-slate-400">
+            Yalnızca "Fazla Mesai" olarak onaylanan süreler puantajın fazla mesai toplamına eklenir;
+            "Eksik Tamamlama" seçilirse süre toplam çalışmada kalır ve eksik saatleri kapatır.
+          </p>
+        </Card>
       )}
 
       <Card>
@@ -151,6 +312,7 @@ export function TimesheetsPage() {
                   <th className="border-b px-2 py-2 text-right">Çalışma</th>
                   <th className="border-b px-2 py-2 text-right">Geç</th>
                   <th className="border-b px-2 py-2 text-right">F.Mesai</th>
+                  <th className="border-b px-2 py-2 text-right">İzin</th>
                   <th className="border-b px-2 py-2 text-right">Devamsız</th>
                   <th className="border-b px-2 py-2">Durum</th>
                 </tr>
@@ -193,6 +355,7 @@ export function TimesheetsPage() {
                     <td className="px-2 text-right font-medium">{formatMinutes(t.totalWorkedMinutes)}</td>
                     <td className="px-2 text-right text-amber-700">{formatMinutes(t.totalLateMinutes)}</td>
                     <td className="px-2 text-right text-indigo-700">{formatMinutes(t.totalOvertimeMinutes)}</td>
+                    <td className="px-2 text-right text-emerald-700">{formatMinutes(t.totalLeaveMinutes)}</td>
                     <td className="px-2 text-right">{t.absentDays}</td>
                     <td className="px-2 text-center">
                       {t.status === "APPROVED" ? (
@@ -216,6 +379,16 @@ export function TimesheetsPage() {
         )}
       </Card>
 
+      {addingLeave && (
+        <AddLeaveModal
+          onClose={() => setAddingLeave(false)}
+          onSaved={() => {
+            setAddingLeave(false);
+            invalidate();
+          }}
+        />
+      )}
+
       {cell && (
         <CellEditModal
           cell={cell}
@@ -230,6 +403,109 @@ export function TimesheetsPage() {
         />
       )}
     </div>
+  );
+}
+
+function AddLeaveModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [userId, setUserId] = useState("");
+  const [leaveDate, setLeaveDate] = useState(todayStr());
+  const [fullDay, setFullDay] = useState(true);
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("13:00");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const users = useQuery({
+    queryKey: ["users"],
+    queryFn: async () =>
+      (await api.get<Array<{ id: string; fullName: string; role: string; isActive: boolean }>>("/users")).data,
+  });
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post("/timesheets/leaves", {
+        userId,
+        leaveDate,
+        ...(fullDay ? {} : { startTime, endTime }),
+        note: note || undefined,
+      });
+      onSaved();
+    } catch (e) {
+      setError(apiErrorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="İzin Ekle" onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="Çalışan">
+          <select className={inputClass} value={userId} onChange={(e) => setUserId(e.target.value)}>
+            <option value="">Seçin…</option>
+            {users.data
+              ?.filter((u) => u.role === "EMPLOYEE" && u.isActive)
+              .map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.fullName}
+                </option>
+              ))}
+          </select>
+        </Field>
+        <Field label="Tarih">
+          <input
+            className={inputClass}
+            type="date"
+            value={leaveDate}
+            onChange={(e) => setLeaveDate(e.target.value)}
+          />
+        </Field>
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input type="checkbox" checked={fullDay} onChange={(e) => setFullDay(e.target.checked)} />
+          Tam gün izin
+        </label>
+        {!fullDay && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Başlangıç">
+              <input
+                className={inputClass}
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+              />
+            </Field>
+            <Field label="Bitiş">
+              <input
+                className={inputClass}
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+              />
+            </Field>
+          </div>
+        )}
+        <Field label="Not (isteğe bağlı)">
+          <input
+            className={inputClass}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Yıllık izin, rapor, mazeret…"
+          />
+        </Field>
+        {error && <p className="text-sm text-rose-600">{error}</p>}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="secondary" onClick={onClose}>
+            Vazgeç
+          </Button>
+          <Button disabled={!userId || !leaveDate || busy || (!fullDay && endTime <= startTime)} onClick={submit}>
+            Kaydet
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
