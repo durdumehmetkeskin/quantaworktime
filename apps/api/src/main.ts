@@ -19,6 +19,9 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new AllExceptionsFilter());
   app.enableCors();
   app.enableShutdownHooks();
+  // Behind Cloudflare + host nginx + container nginx: honor X-Forwarded-For so
+  // @Ip() and the throttler see the real client, not the proxy chain.
+  app.getHttpAdapter().getInstance().set("trust proxy", true);
 
   const config = app.get(ConfigService);
   const port = config.get<number>("port", 3000);

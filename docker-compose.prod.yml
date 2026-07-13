@@ -1,0 +1,63 @@
+# Production stack — host nginx reverse-proxies the two domains to the
+# loopback-bound api/admin containers. PostgreSQL publishes NO host port
+# (the server's own PostgreSQL already owns 5432).
+#
+#   sudo docker compose -f docker-compose.prod.yml up -d --build
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: quanta-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-quanta}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set in .env}
+      POSTGRES_DB: ${DB_NAME:-quanta_worktime}
+    # no ports: reachable only on the compose network
+    volumes:
+      - quanta-pgdata-prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-quanta} -d ${DB_NAME:-quanta_worktime}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: quanta-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-quanta}
+      DB_PASSWORD: ${DB_PASSWORD:?set in .env}
+      DB_NAME: ${DB_NAME:-quanta_worktime}
+      PORT: 3000
+      NODE_ENV: production
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set in .env}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-900s}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-7d}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set in .env}
+    ports:
+      # loopback only — host nginx (quantaapi.durdumehmetkeskin.space) proxies here
+      - "127.0.0.1:${API_BIND_PORT:-3010}:3000"
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    container_name: quanta-admin
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      # loopback only — host nginx (quanta.durdumehmetkeskin.space) proxies here
+      - "127.0.0.1:${ADMIN_BIND_PORT:-8080}:80"
+
+volumes:
+  quanta-pgdata-prod:
