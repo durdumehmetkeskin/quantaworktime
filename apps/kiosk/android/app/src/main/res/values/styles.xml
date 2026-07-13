@@ -1,0 +1,5 @@
+<resources>
+    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:editTextBackground">@android:drawable/edit_text</item>
+    </style>
+</resources>

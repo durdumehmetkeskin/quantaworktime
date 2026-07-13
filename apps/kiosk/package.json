@@ -1,0 +1,36 @@
+{
+  "name": "@quanta/kiosk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Quanta Worktime Management tablet kiosk app (Android)",
+  "main": "index.js",
+  "scripts": {
+    "start": "react-native start",
+    "android": "react-native run-android",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@quanta/shared": "workspace:*",
+    "react": "18.2.0",
+    "react-native": "0.74.5",
+    "react-native-get-random-values": "^1.11.0",
+    "react-native-keep-awake": "^4.0.0",
+    "react-native-keychain": "^8.2.0",
+    "react-native-qrcode-svg": "^6.3.12",
+    "react-native-svg": "15.3.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.25.3",
+    "@babel/runtime": "^7.25.0",
+    "@react-native-community/cli": "13.6.9",
+    "@react-native-community/cli-platform-android": "13.6.9",
+    "@react-native/babel-preset": "0.74.87",
+    "@react-native/gradle-plugin": "0.74.87",
+    "@react-native/metro-config": "0.74.87",
+    "@react-native/typescript-config": "0.74.87",
+    "@types/react": "^18.2.6",
+    "typescript": "^5.6.3"
+  }
+}
