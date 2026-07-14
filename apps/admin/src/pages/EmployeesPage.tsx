@@ -248,6 +248,10 @@ function UserModal({
     try {
       if (user) {
         await api.patch(`/users/${user.id}`, payload);
+        // Optional admin password reset — only when the field was filled in.
+        if (values.password) {
+          await api.post(`/users/${user.id}/password`, { password: values.password });
+        }
       } else {
         if (!values.password) {
           setError("Yeni kullanıcı için şifre zorunludur.");
@@ -270,11 +274,18 @@ function UserModal({
         <Field label="E-posta" error={errors.email?.message}>
           <input className={inputClass} type="email" {...register("email")} />
         </Field>
-        {!user && (
-          <Field label="Şifre" error={errors.password?.message}>
-            <input className={inputClass} type="password" {...register("password")} />
-          </Field>
-        )}
+        <Field
+          label={user ? "Yeni Şifre (değiştirmek için doldurun)" : "Şifre"}
+          error={errors.password?.message}
+        >
+          <input
+            className={inputClass}
+            type="password"
+            autoComplete="new-password"
+            placeholder={user ? "Boş bırakılırsa değişmez" : ""}
+            {...register("password")}
+          />
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Sicil No">
             <input className={inputClass} {...register("employeeCode")} />

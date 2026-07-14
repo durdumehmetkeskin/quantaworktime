@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
 } from "@nestjs/common";
+import { IsString, MinLength } from "class-validator";
 
 import { UserRole } from "@quanta/shared";
 
@@ -18,10 +19,26 @@ import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UsersService } from "./users.service";
 
+class ResetPasswordDto {
+  @IsString()
+  @MinLength(8, { message: "Şifre en az 8 karakter olmalıdır." })
+  password: string;
+}
+
 @Controller("users")
 @Roles(UserRole.ADMIN, UserRole.MANAGER)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Post(":id/password")
+  @Roles(UserRole.ADMIN)
+  resetPassword(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: ResetPasswordDto,
+    @CurrentUser() actor: AuthenticatedRequestUser,
+  ) {
+    return this.usersService.resetPassword(id, dto.password, actor.id);
+  }
 
   @Post()
   @Roles(UserRole.ADMIN)

@@ -1,8 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { DataSource, Repository } from "typeorm";
 
-import { DeviceStatus, fromBase64Url } from "@quanta/shared";
+import { DeviceStatus, fromBase64Url, sha256Bytes, timingSafeEqual } from "@quanta/shared";
 
 import { EncryptionService } from "../../common/crypto/encryption.service";
 import { Device } from "../../entities";
@@ -31,6 +31,27 @@ export class DevicesService {
     ip?: string,
   ): Promise<Device> {
     const deviceKey = fromBase64Url(deviceKeyB64);
+
+    // One device per account: while an ACTIVE binding exists, no other device
+    // may register — the admin must remove (revoke) the old one first.
+    const active = await this.devices.findOneBy({ userId, status: DeviceStatus.ACTIVE });
+    if (active) {
+      const sameKey = timingSafeEqual(
+        this.encryption.decrypt(active.deviceKeyEncrypted),
+        deviceKey,
+      );
+      if (!sameKey) {
+        await this.audit.log({
+          userId,
+          action: "DEVICE_REGISTER_BLOCKED",
+          detail: { reason: "active_device_exists", activeDeviceId: active.id },
+          ip,
+        });
+        throw new ForbiddenException(
+          "Bu hesaba kayıtlı aktif bir cihaz var. Yeni cihaz için yöneticinizin eski cihazı kaldırması gerekir.",
+        );
+      }
+    }
     const device = await this.dataSource.transaction(async (em) => {
       await em
         .getRepository(Device)
@@ -114,5 +135,36 @@ export class DevicesService {
     const device = await this.devices.findOneBy({ userId, status: DeviceStatus.ACTIVE });
     if (!device) return null;
     return { device, key: this.encryption.decrypt(device.deviceKeyEncrypted) };
+  }
+
+  /**
+   * Login-time device binding check: compares the phone's key fingerprint
+   * (base64url sha256 of the raw device key) against the user's devices.
+   */
+  async fingerprintCheck(
+    userId: string,
+    fingerprintB64: string | undefined,
+  ): Promise<{ hasActive: boolean; matchesActive: boolean; matchesRevoked: boolean }> {
+    const rows = await this.devices.findBy({ userId });
+    let hasActive = false;
+    let matchesActive = false;
+    let matchesRevoked = false;
+    let provided: Uint8Array | null = null;
+    if (fingerprintB64) {
+      try {
+        provided = fromBase64Url(fingerprintB64);
+      } catch {
+        provided = null;
+      }
+    }
+    for (const row of rows) {
+      if (row.status === DeviceStatus.ACTIVE) hasActive = true;
+      if (!provided) continue;
+      const rowFp = sha256Bytes(this.encryption.decrypt(row.deviceKeyEncrypted));
+      if (!timingSafeEqual(rowFp, provided)) continue;
+      if (row.status === DeviceStatus.ACTIVE) matchesActive = true;
+      if (row.status === DeviceStatus.REVOKED) matchesRevoked = true;
+    }
+    return { hasActive, matchesActive, matchesRevoked };
   }
 }

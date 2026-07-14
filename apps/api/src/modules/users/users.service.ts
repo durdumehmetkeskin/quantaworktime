@@ -71,6 +71,20 @@ export class UsersService {
     return toSafe(saved);
   }
 
+  /** Admin resets a user's password (user cannot recover the old one). */
+  async resetPassword(id: string, newPassword: string, actorId: string): Promise<{ ok: true }> {
+    const user = await this.users.findOneBy({ id });
+    if (!user) throw new NotFoundException("Kullanıcı bulunamadı.");
+    user.passwordHash = await argon2.hash(newPassword);
+    await this.users.save(user);
+    await this.audit.log({
+      userId: actorId,
+      action: "USER_PASSWORD_RESET",
+      detail: { targetUserId: id },
+    });
+    return { ok: true };
+  }
+
   /** Soft-delete: deactivate rather than remove (attendance history must survive). */
   async deactivate(id: string, actorId: string): Promise<SafeUser> {
     const user = await this.users.findOneBy({ id });

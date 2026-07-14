@@ -1,11 +1,10 @@
 import { Platform } from "react-native";
 import * as Keychain from "react-native-keychain";
 
-import { DEVICE_KEY_BYTES, fromBase64Url, randomBytes, toBase64Url } from "@quanta/shared";
+import { DEVICE_KEY_BYTES, randomBytes, toBase64Url } from "@quanta/shared";
 
 import { apiRequest } from "./api";
-
-const SERVICE = "quanta.employee.deviceKey";
+import { DEVICE_KEY_SERVICE as SERVICE, getStoredDeviceKey } from "./deviceIdentity";
 
 /**
  * The device key is generated ON the phone, never re-derivable elsewhere, and
@@ -14,12 +13,12 @@ const SERVICE = "quanta.employee.deviceKey";
  */
 /** True if a device key already exists in the keystore (survives updates, lost on uninstall). */
 export async function hasStoredDeviceKey(): Promise<boolean> {
-  return (await Keychain.getGenericPassword({ service: SERVICE })) !== false;
+  return (await getStoredDeviceKey()) !== null;
 }
 
 export async function getOrCreateDeviceKey(): Promise<Uint8Array> {
-  const stored = await Keychain.getGenericPassword({ service: SERVICE });
-  if (stored) return fromBase64Url(stored.password);
+  const stored = await getStoredDeviceKey();
+  if (stored) return stored;
   const key = randomBytes(DEVICE_KEY_BYTES);
   await Keychain.setGenericPassword("deviceKey", toBase64Url(key), {
     service: SERVICE,

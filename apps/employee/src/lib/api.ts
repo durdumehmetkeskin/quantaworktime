@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { AuthTokens, AuthUserInfo, LoginResponse } from "@quanta/shared";
 
 import { SERVER_URL } from "../config";
+import { getDeviceFingerprint } from "./deviceIdentity";
 
 const TOKENS_KEY = "quanta.tokens";
 const USER_KEY = "quanta.user";
@@ -58,9 +59,11 @@ async function rawRequest<T>(
 }
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
+  // One-device rule: identify this device so the server can enforce binding.
+  const deviceFingerprint = await getDeviceFingerprint();
   const data = await rawRequest<LoginResponse>("/auth/login", {
     method: "POST",
-    body: { email, password },
+    body: { email, password, ...(deviceFingerprint ? { deviceFingerprint } : {}) },
   });
   await AsyncStorage.setItem(
     TOKENS_KEY,
@@ -81,9 +84,13 @@ export async function apiRequest<T>(
     return await rawRequest<T>(path, { ...options, token: tokens.accessToken });
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
+      const deviceFingerprint = await getDeviceFingerprint();
       const fresh = await rawRequest<AuthTokens>("/auth/refresh", {
         method: "POST",
-        body: { refreshToken: tokens.refreshToken },
+        body: {
+          refreshToken: tokens.refreshToken,
+          ...(deviceFingerprint ? { deviceFingerprint } : {}),
+        },
       }).catch(() => null);
       if (!fresh) {
         await clearSession();

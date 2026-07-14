@@ -58,6 +58,12 @@ export interface QrPayload {
 export interface LoginRequest {
   email: string;
   password: string;
+  /**
+   * base64url SHA-256 of the device key (employee app). Employees with a
+   * bound (ACTIVE) device may only log in from that device; revoked devices
+   * are rejected permanently.
+   */
+  deviceFingerprint?: string;
 }
 
 export interface AuthTokens {

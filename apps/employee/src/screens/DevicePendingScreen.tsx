@@ -83,7 +83,8 @@ export function DevicePendingScreen({
       {current?.status === "REVOKED" && (
         <>
           <Text style={[sharedStyles.subtitle, { color: colors.danger }]}>
-            Bu cihazın erişimi iptal edilmiş. Yeniden kayıt olabilirsiniz.
+            Bu cihazın erişimi kaldırılmış. Yeniden kayıt talebi gönderebilirsiniz; yöneticiniz
+            onaylamadan giriş yapılamaz.
           </Text>
           <TouchableOpacity style={sharedStyles.primaryButton} onPress={register}>
             <Text style={sharedStyles.primaryButtonText}>Yeniden Kaydet</Text>

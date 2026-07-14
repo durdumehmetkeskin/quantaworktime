@@ -21,14 +21,14 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post("login")
   login(@Body() dto: LoginDto, @Ip() ip: string) {
-    return this.authService.login(dto.email, dto.password, ip);
+    return this.authService.login(dto.email, dto.password, ip, dto.deviceFingerprint);
   }
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post("refresh")
   refresh(@Body() dto: RefreshDto) {
-    return this.authService.refresh(dto.refreshToken);
+    return this.authService.refresh(dto.refreshToken, dto.deviceFingerprint);
   }
 
   @Post("register-device")
