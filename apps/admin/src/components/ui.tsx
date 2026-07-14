@@ -2,14 +2,15 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 export function Card({ title, action, children }: { title?: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 md:p-5">
       {(title || action) && (
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           {title && <h2 className="text-sm font-semibold text-slate-700">{title}</h2>}
           {action}
         </div>
       )}
-      {children}
+      {/* Tables and other wide content scroll horizontally on small screens. */}
+      <div className="overflow-x-auto">{children}</div>
     </div>
   );
 }

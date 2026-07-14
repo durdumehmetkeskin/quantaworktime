@@ -78,6 +78,12 @@ export function EmployeesPage() {
     onError: (e) => setError(apiErrorMessage(e)),
   });
 
+  const activate = useMutation({
+    mutationFn: async (id: string) => api.patch(`/users/${id}`, { isActive: true }),
+    onSuccess: invalidate,
+    onError: (e) => setError(apiErrorMessage(e)),
+  });
+
   const pendingDevices = (devices.data ?? []).filter((d) => d.status === "PENDING_APPROVAL");
   const devicesByUser = new Map<string, DeviceRow[]>();
   for (const d of devices.data ?? []) {
@@ -86,7 +92,7 @@ export function EmployeesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-800">Çalışanlar</h1>
         <Button onClick={() => setEditing("new")}>+ Yeni Çalışan</Button>
       </div>
@@ -179,9 +185,17 @@ export function EmployeesPage() {
                       <Button variant="ghost" onClick={() => setEditing(u)}>
                         Düzenle
                       </Button>
-                      {u.isActive && (
+                      {u.isActive ? (
                         <Button variant="ghost" className="!text-rose-600" onClick={() => deactivate.mutate(u.id)}>
                           Pasifleştir
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          className="!text-emerald-600"
+                          onClick={() => activate.mutate(u.id)}
+                        >
+                          Aktifleştir
                         </Button>
                       )}
                     </td>

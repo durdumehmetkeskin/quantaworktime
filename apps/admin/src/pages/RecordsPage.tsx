@@ -42,7 +42,7 @@ export function RecordsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-800">Kayıtlar</h1>
         <div className="flex rounded-lg bg-slate-200 p-1">
           <TabButton active={tab === "records"} onClick={() => setTab("records")}>

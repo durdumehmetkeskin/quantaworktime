@@ -160,7 +160,7 @@ export function TimesheetsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-slate-800">Puantaj</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input className={inputClass + " !w-40"} type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
           <Button variant="secondary" onClick={() => setAddingLeave(true)}>
             + İzin Ekle
